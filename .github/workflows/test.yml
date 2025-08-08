@@ -1,0 +1,133 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - pre-login
+          - login
+          - post-login
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Setup Chrome
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable
+    
+    - name: Run E2E tests
+      env:
+        HEADLESS: true
+        TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+        TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+        BASE_URL: ${{ secrets.BASE_URL || 'https://www.cyberrank.ai' }}
+      run: |
+        if [ "${{ github.event.inputs.test_suite }}" = "smoke" ]; then
+          echo "Running all test cases (smoke suite)..."
+          npm test
+        elif [ "${{ github.event.inputs.test_suite }}" = "pre-login" ]; then
+          echo "Running pre-login tests..."
+          npm run test:pre-login
+        elif [ "${{ github.event.inputs.test_suite }}" = "login" ]; then
+          echo "Running login tests..."
+          npm run test:login
+        elif [ "${{ github.event.inputs.test_suite }}" = "post-login" ]; then
+          echo "Running post-login tests..."
+          npm run test:post-login
+        else
+          echo "Running all tests (default)..."
+          npm test
+        fi
+    
+    - name: Generate Allure Report
+      if: always()
+      run: npm run allure:generate
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: |
+          allure-results/
+          screenshots/
+        retention-days: 30
+    
+    - name: Upload Allure report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: allure-report
+        path: allure-report/
+        retention-days: 30
+    
+    - name: Publish test results
+      if: always()
+      uses: dorny/test-reporter@v1
+      with:
+        name: Test Results
+        path: 'reports/json/*.json'
+        reporter: cucumber-json
+        fail-on-error: false
+
+  deploy-report:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download Allure report
+      uses: actions/download-artifact@v4
+      with:
+        name: allure-report
+        path: allure-report
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./allure-report
+        destination_dir: test-reports/${{ github.run_number }}
+
+  notify:
+    needs: test
+    runs-on: ubuntu-latest
+    if: failure() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Send notification
+      run: |
+        echo "Tests failed! Check the results at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        # Add your notification logic here (Slack, email, etc.)
