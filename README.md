@@ -2,11 +2,32 @@
 
 End-to-end test automation framework for CyberRank.ai platform using WebdriverIO with Cucumber BDD.
 
+📊 **Live Test Reports**: [https://rilham97.github.io/webdriver-web-automation/](https://rilham97.github.io/webdriver-web-automation/)
+
+## 🎯 For Assessment Reviewers
+
+**Quick Evaluation Steps:**
+1. **View Live Reports**: [https://rilham97.github.io/webdriver-web-automation/](https://rilham97.github.io/webdriver-web-automation/) *(No setup required)*
+2. **Run Tests**: [GitHub Actions Workflow](https://github.com/rilham97/webdriver-web-automation/actions/workflows/test.yml) → Click "Run workflow"
+3. **Clone & Test Locally**: `git clone https://github.com/rilham97/webdriver-web-automation.git` → Follow [Local Installation](#local-installation)
+
+**Key Features Demonstrated:**
+- ✅ WebdriverIO + Cucumber BDD Framework
+- ✅ Page Object Model Architecture  
+- ✅ Comprehensive Test Coverage (Authentication, UI, API interactions)
+- ✅ Allure Test Reporting with Screenshots
+- ✅ GitHub Actions CI/CD Pipeline
+- ✅ Professional Documentation
+- ✅ Real-world Test Scenarios (CyberRank.ai platform)
+
+---
+
 ## Table of Contents
 - [Overview](#overview)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
-- [Installation](#installation)
+- [Quick Start (GitHub Actions)](#quick-start-github-actions)
+- [Local Installation](#local-installation)
 - [Running Tests](#running-tests)
 - [Test Reports](#test-reports)
 - [Writing New Tests](#writing-new-tests)
@@ -72,7 +93,44 @@ webDriverProject/
 └── .env                          # Environment variables (create this)
 ```
 
-## Installation
+## Quick Start (GitHub Actions)
+
+**⚡ Fastest way to run tests - No local setup required!**
+
+### Step 1: Access GitHub Actions
+1. Go to: [https://github.com/rilham97/webdriver-web-automation/actions/workflows/test.yml](https://github.com/rilham97/webdriver-web-automation/actions/workflows/test.yml)
+2. Click **"Run workflow"** button (top right)
+
+### Step 2: Configure Test Run
+3. Select test suite:
+   - **login** - Fast authentication tests (3 scenarios, ~5 minutes)
+   - **smoke** - All test scenarios (9 scenarios, ~15 minutes)  
+   - **pre-login** - Features before authentication
+   - **post-login** - Features requiring authentication
+   - **all** - Comprehensive test suite
+
+4. Enable debug mode (optional): Check for detailed logging
+5. Click **"Run workflow"** button
+
+### Step 3: Monitor Execution
+6. Watch real-time progress in the Actions tab
+7. View live test logs and execution status
+8. Wait for completion (~5-15 minutes depending on suite)
+
+### Step 4: View Results
+9. **Live Reports**: Visit [https://rilham97.github.io/webdriver-web-automation/](https://rilham97.github.io/webdriver-web-automation/)
+10. **Download Artifacts**: Screenshots and detailed logs available in the workflow run
+11. **GitHub Summary**: View test summary directly in Actions tab
+
+### Test Credentials
+Tests use pre-configured credentials:
+- **Email**: `falaraiza@gmail.com`
+- **Password**: `K1j@nghijau97` 
+- **Target**: `https://www.cyberrank.ai`
+
+---
+
+## Local Installation
 
 ### Prerequisites
 - Node.js (v18 or higher)
@@ -83,8 +141,8 @@ webDriverProject/
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd webDriverProject
+   git clone https://github.com/rilham97/webdriver-web-automation.git
+   cd webdriver-web-automation
    ```
 
 2. Install dependencies:
@@ -94,8 +152,10 @@ webDriverProject/
 
 3. Create `.env` file in the root directory:
    ```
-   VALID_EMAIL=your-test-email@example.com
-   VALID_PASSWORD=your-test-password
+   TEST_USER_EMAIL=your-test-email@example.com
+   TEST_USER_PASSWORD=your-test-password
+   BASE_URL=https://www.cyberrank.ai
+   HEADLESS=false
    ```
 
 ## Running Tests

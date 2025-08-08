@@ -467,7 +467,7 @@ jobs:
                               <div class="label">Triggered By</div>
                           </div>
                           <div class="info-item">
-                              <div class="value">\$(date +'%Y-%m-%d')</div>
+                              <div class="value">$(date +'%Y-%m-%d')</div>
                               <div class="label">Generated</div>
                           </div>
                       </div>
