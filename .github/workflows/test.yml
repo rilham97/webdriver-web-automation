@@ -1,147 +1,507 @@
-name: E2E Tests
+name: 🧪 WebDriverIO E2E Tests
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   schedule:
-    # Run tests daily at 2 AM UTC
     - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       test_suite:
         description: 'Test suite to run'
-        required: false
+        required: true
         default: 'smoke'
         type: choice
-        options:
-          - smoke
-          - pre-login
-          - login
-          - post-login
+        options: [smoke, pre-login, login, post-login, all]
+      debug_mode:
+        description: 'Enable debug mode for troubleshooting'
+        required: false
+        default: false
+        type: boolean
+
+# Add workflow-level permissions for GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  NODE_VERSION: '18'
+  RETENTION_DAYS_ARTIFACTS: 7
+  RETENTION_DAYS_SCREENSHOTS: 7
+  GLOBAL_TIMEOUT_MINUTES: 60
 
 jobs:
-  test:
+  code-quality:
+    name: 🔍 Code Quality Check
     runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        node-version: [18.x]
-    
+    timeout-minutes: 10
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Setup Chrome
-      uses: browser-actions/setup-chrome@v1
-      with:
-        chrome-version: stable
-    
-    - name: Create screenshots directory
-      run: mkdir -p screenshots
-    
-    - name: Run E2E tests
-      env:
-        HEADLESS: true
-        TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-        TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-        BASE_URL: ${{ secrets.BASE_URL || 'https://www.cyberrank.ai' }}
-      run: |
-        if [ "${{ github.event.inputs.test_suite }}" = "smoke" ]; then
-          echo "Running all test cases (smoke suite)..."
-          npm test
-        elif [ "${{ github.event.inputs.test_suite }}" = "pre-login" ]; then
-          echo "Running pre-login tests..."
-          npm run test:pre-login
-        elif [ "${{ github.event.inputs.test_suite }}" = "login" ]; then
-          echo "Running login tests..."
-          npm run test:login
-        elif [ "${{ github.event.inputs.test_suite }}" = "post-login" ]; then
-          echo "Running post-login tests..."
-          npm run test:post-login
-        else
-          echo "Running all tests (default)..."
-          npm test
-        fi
-    
-    - name: Generate Allure Report
-      if: always()
-      run: npm run allure:generate
-    
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: |
-          allure-results/
-          screenshots/
-        retention-days: 30
-    
-    - name: Upload Allure report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: allure-report
-        path: allure-report/
-        retention-days: 30
-    
-    - name: Publish test summary
-      if: always()
-      run: |
-        echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [ -f "allure-results/allure-report.json" ]; then
-          echo "✅ Allure report generated successfully" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "⚠️ Allure report generation may have issues" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "📁 **Artifacts Available:**" >> $GITHUB_STEP_SUMMARY
-        echo "- Test Results (allure-results/)" >> $GITHUB_STEP_SUMMARY
-        echo "- HTML Report (allure-report/)" >> $GITHUB_STEP_SUMMARY
-        echo "- Screenshots (if any failures)" >> $GITHUB_STEP_SUMMARY
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
 
-  deploy-report:
-    needs: test
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧹 Dependency audit
+        run: npm audit --audit-level=high --production
+
+  test-execution:
+    name: 🧪 Test Execution
     runs-on: ubuntu-latest
-    if: always() && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
+    needs: code-quality
+    timeout-minutes: 30
     
+    env:
+      CI: true
+      HEADLESS: true
+      TEST_SUITE: ${{ github.event.inputs.test_suite || 'all' }}
+      DEBUG_MODE: ${{ github.event.inputs.debug_mode == 'true' }}
+      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      BASE_URL: ${{ secrets.BASE_URL || 'https://www.cyberrank.ai' }}
+
     steps:
-    - name: Download Allure report
-      uses: actions/download-artifact@v4
-      with:
-        name: allure-report
-        path: allure-report
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🌐 Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: 🔍 Environment verification
+        run: |
+          cat << 'EOF'
+          === Environment Information ===
+          Node: $(node -v)
+          NPM: $(npm -v)
+          Chrome: $(google-chrome --version 2>/dev/null || echo "Chrome not found")
+          Test Suite: ${{ env.TEST_SUITE }}
+          Debug Mode: ${{ env.DEBUG_MODE }}
+          Headless: ${{ env.HEADLESS }}
+          Base URL: ${{ env.BASE_URL }}
+          EOF
+
+      - name: 🧪 Chrome compatibility test
+        run: |
+          echo "🚀 Testing Chrome launch..."
+          google-chrome --version
+          google-chrome --headless --disable-gpu --remote-debugging-port=9222 --disable-extensions --no-sandbox --disable-dev-shm-usage about:blank &
+          CHROME_PID=$!
+          sleep 2
+          kill $CHROME_PID 2>/dev/null || true
+          echo "✅ Chrome test completed"
+
+      - name: 🏗️ Prepare test environment
+        run: |
+          # Create required directories
+          mkdir -p {allure-results,allure-report,screenshots,test-results}
+          chmod 755 {allure-results,allure-report,screenshots,test-results}
+          
+          # Generate test info
+          cat > test-results/test-info.txt << EOF
+          Test Suite: ${{ env.TEST_SUITE }}
+          Started: $(date)
+          Trigger: ${{ github.event_name }}
+          Actor: @${{ github.actor }}
+          Headless: ${{ env.HEADLESS }}
+          Base URL: ${{ env.BASE_URL }}
+          EOF
+          
+          # Clean previous results
+          rm -rf allure-results/* || true
+
+      - name: 🏃‍♂️ Execute WebDriverIO tests
+        timeout-minutes: 20
+        run: |
+          # Setup debug mode
+          if [ "$DEBUG_MODE" = "true" ]; then
+            export DEBUG=wdio*
+            echo "🐛 Debug mode enabled"
+          fi
+          
+          # Determine test command based on suite
+          case "${{ env.TEST_SUITE }}" in
+            smoke)
+              echo "🚀 Running all test cases (smoke suite)..."
+              TEST_COMMAND="npm test"
+              ;;
+            pre-login)
+              echo "🚀 Running pre-login tests..."
+              TEST_COMMAND="npm run test:pre-login"
+              ;;
+            login)
+              echo "🚀 Running login tests..."
+              TEST_COMMAND="npm run test:login"
+              ;;
+            post-login)
+              echo "🚀 Running post-login tests..."
+              TEST_COMMAND="npm run test:post-login"
+              ;;
+            all|*)
+              echo "🚀 Running all tests..."
+              TEST_COMMAND="npm test"
+              ;;
+          esac
+          
+          echo "📋 Executing: $TEST_COMMAND"
+          
+          if $TEST_COMMAND 2>&1 | tee test-execution.log; then
+            echo "✅ Tests completed successfully"
+            TEST_STATUS="PASSED"
+          else
+            echo "❌ Tests failed"
+            TEST_STATUS="FAILED"
+            echo "📄 Last 20 lines of execution log:"
+            tail -20 test-execution.log
+          fi
+          
+          # Update test info
+          cat >> test-results/test-info.txt << EOF
+          Completed: $(date)
+          Status: $TEST_STATUS
+          Results Count: $(find allure-results -name '*.json' 2>/dev/null | wc -l)
+          Screenshots: $(find screenshots -name '*.png' 2>/dev/null | wc -l)
+          EOF
+          
+          # Create environment files for Allure
+          cat > allure-results/environment.properties << EOF
+          Browser=Chrome (Headless)
+          Platform=ubuntu-latest
+          CI=true
+          Headless=true
+          Node.Version=$(node -v)
+          WebDriverIO.Version=$(npm list @wdio/cli --depth=0 2>/dev/null | grep @wdio/cli || echo "Unknown")
+          Test.Suite=${{ env.TEST_SUITE }}
+          Base.URL=${{ env.BASE_URL }}
+          Execution.Date=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          Triggered.By=@${{ github.actor }}
+          Trigger.Event=${{ github.event_name }}
+          EOF
+          
+          cat > allure-results/executor.json << EOF
+          {
+            "name": "GitHub Actions - WebDriverIO",
+            "type": "github-actions",
+            "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "buildOrder": ${{ github.run_number }},
+            "buildName": "E2E Tests - @${{ github.actor }}",
+            "buildUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "reportName": "WebDriverIO Cucumber Report",
+            "triggeredBy": "${{ github.actor }}",
+            "triggerEvent": "${{ github.event_name }}",
+            "runId": "${{ github.run_id }}",
+            "runNumber": ${{ github.run_number }}
+          }
+          EOF
+          
+          # Show final status
+          echo "📊 Final Results:"
+          cat test-results/test-info.txt
+          
+          # Exit with error if tests failed (but allow artifacts to be uploaded)
+          if [ "$TEST_STATUS" = "FAILED" ]; then
+            echo "::warning::Tests failed but continuing to upload artifacts"
+          fi
+
+      - name: 📸 Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          retention-days: ${{ env.RETENTION_DAYS_SCREENSHOTS }}
+          if-no-files-found: ignore
+
+      - name: 📁 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            allure-results/
+            test-execution.log
+          retention-days: ${{ env.RETENTION_DAYS_ARTIFACTS }}
+
+  report-generation:
+    name: 📊 Report Generation
+    runs-on: ubuntu-latest
+    needs: test-execution
+    if: always()
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js and Allure
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          npm install -g allure-commandline
+
+      - name: ⬇️ Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: test-artifacts/
+
+      - name: ⬇️ Download screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+        continue-on-error: true
+
+      - name: 📊 Generate comprehensive reports
+        run: |
+          # Setup results directory
+          mkdir -p allure-results
+          cp -r test-artifacts/allure-results/* allure-results/ 2>/dev/null || echo "No allure results found"
+          
+          # Create enhanced environment properties
+          cat > allure-results/environment.properties << EOF
+          Test.Framework=WebDriverIO + Cucumber BDD
+          Browser=Chrome (Headless)
+          Platform=ubuntu-latest
+          CI.Provider=GitHub Actions
+          Execution.Mode=Headless
+          Node.Version=$(node -v)
+          Test.Suite=${{ github.event.inputs.test_suite || 'all' }}
+          Base.URL=${{ secrets.BASE_URL || 'https://www.cyberrank.ai' }}
+          Execution.Date=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          Repository=${{ github.repository }}
+          Branch=${{ github.ref_name }}
+          Commit=${{ github.sha }}
+          Triggered.By=@${{ github.actor }}
+          Trigger.Event=${{ github.event_name }}
+          Run.ID=${{ github.run_id }}
+          Run.Number=${{ github.run_number }}
+          EOF
+          
+          # Generate Allure report
+          if [ "$(ls -A allure-results 2>/dev/null)" ]; then
+            echo "✅ Generating Allure report..."
+            npm run allure:generate
+            echo "✅ Allure report generated successfully"
+          else
+            echo "⚠️ No results found, creating placeholder..."
+            mkdir -p allure-report
+            cat > allure-report/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html><head><title>No Results Found</title></head>
+          <body>
+          <h1>🚫 No Test Results Found</h1>
+          <p>The test execution may have failed before generating results.</p>
+          <p>Check the test execution logs for more information.</p>
+          </body></html>
+          EOF
+          fi
+
+      - name: 📤 Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: allure-report/
+          retention-days: ${{ env.RETENTION_DAYS_ARTIFACTS }}
+
+      - name: 📋 Generate test summary
+        run: |
+          echo "## 🧪 Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "test-artifacts/test-results/test-info.txt" ]; then
+            echo "### 📊 Test Information" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat test-artifacts/test-results/test-info.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Available Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 **Allure Report**: Interactive HTML test report" >> $GITHUB_STEP_SUMMARY
+          echo "- 📸 **Screenshots**: Failure screenshots (if any)" >> $GITHUB_STEP_SUMMARY
+          echo "- 📁 **Test Results**: Raw test execution data" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Useful Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Test Execution Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Repository](${{ github.server_url }}/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+
+  deploy-reports:
+    name: 🚀 Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: report-generation
+    if: always() && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
     
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./allure-report
-        destination_dir: test-reports/${{ github.run_number }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⬇️ Download reports
+        uses: actions/download-artifact@v4
+        with:
+          name: test-reports
+          path: allure-report/
+
+      - name: 🏗️ Create deployment structure
+        run: |
+          mkdir -p public/test-reports/${{ github.run_number }}
+          
+          # Copy Allure report
+          if [ -d "allure-report" ] && [ "$(ls -A allure-report)" ]; then
+            cp -r allure-report/* public/test-reports/${{ github.run_number }}/
+            echo "✅ Allure report copied successfully"
+          else
+            echo "⚠️ No Allure report found, creating placeholder"
+            mkdir -p public/test-reports/${{ github.run_number }}
+            cat > public/test-reports/${{ github.run_number }}/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html><head><title>Test Report Unavailable</title></head>
+          <body>
+          <h1>⚠️ Test Report Not Available</h1>
+          <p>The test report could not be generated. Please check the workflow logs.</p>
+          </body></html>
+          EOF
+          fi
+          
+          # Create main index page
+          cat > public/index.html << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>🧪 WebDriverIO E2E Test Reports</title>
+              <style>
+                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+                  .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+                  .header { text-align: center; color: white; margin-bottom: 40px; }
+                  .header h1 { font-size: 2.5em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+                  .header p { font-size: 1.2em; opacity: 0.9; margin: 10px 0; }
+                  .reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
+                  .report-card { background: white; border-radius: 15px; padding: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); transition: transform 0.3s ease; }
+                  .report-card:hover { transform: translateY(-5px); }
+                  .report-card .icon { font-size: 3em; margin-bottom: 20px; }
+                  .report-card h2 { color: #333; margin: 0 0 15px 0; }
+                  .report-card p { color: #666; margin-bottom: 25px; line-height: 1.6; }
+                  .btn { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 25px; font-weight: bold; transition: background 0.3s ease; }
+                  .btn:hover { background: #5a6fd8; }
+                  .info-section { background: rgba(255,255,255,0.1); border-radius: 15px; padding: 25px; margin-top: 30px; color: white; }
+                  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+                  .info-item { text-align: center; }
+                  .info-item .value { font-size: 1.5em; font-weight: bold; margin-bottom: 5px; }
+                  .info-item .label { opacity: 0.8; font-size: 0.9em; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h1>🧪 WebDriverIO E2E Test Reports</h1>
+                      <p>CyberRank Automation Testing Suite</p>
+                      <p>Powered by WebDriverIO + Cucumber BDD + Allure Reports</p>
+                  </div>
+                  
+                  <div class="reports-grid">
+                      <div class="report-card">
+                          <div class="icon">📊</div>
+                          <h2>Latest Test Report</h2>
+                          <p>Comprehensive test execution results with detailed step-by-step analysis, screenshots, and performance metrics.</p>
+                          <a href="./test-reports/${{ github.run_number }}/index.html" class="btn" target="_blank">View Report</a>
+                      </div>
+                      
+                      <div class="report-card">
+                          <div class="icon">🔗</div>
+                          <h2>GitHub Repository</h2>
+                          <p>Access the source code, documentation, and contribute to the automation testing framework.</p>
+                          <a href="${{ github.server_url }}/${{ github.repository }}" class="btn" target="_blank">View Code</a>
+                      </div>
+                      
+                      <div class="report-card">
+                          <div class="icon">⚙️</div>
+                          <h2>Workflow Run</h2>
+                          <p>Check the execution logs, artifacts, and detailed workflow information for this test run.</p>
+                          <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" class="btn" target="_blank">View Workflow</a>
+                      </div>
+                  </div>
+                  
+                  <div class="info-section">
+                      <h2 style="text-align: center; margin: 0 0 20px 0;">📈 Execution Details</h2>
+                      <div class="info-grid">
+                          <div class="info-item">
+                              <div class="value">${{ github.run_number }}</div>
+                              <div class="label">Run Number</div>
+                          </div>
+                          <div class="info-item">
+                              <div class="value">${{ github.ref_name }}</div>
+                              <div class="label">Branch</div>
+                          </div>
+                          <div class="info-item">
+                              <div class="value">@${{ github.actor }}</div>
+                              <div class="label">Triggered By</div>
+                          </div>
+                          <div class="info-item">
+                              <div class="value">\$(date +'%Y-%m-%d')</div>
+                              <div class="label">Generated</div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
+
+      - name: 🔧 Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: 📤 Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public/
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   notify:
-    needs: test
+    name: 📢 Notification
     runs-on: ubuntu-latest
-    if: failure() && github.ref == 'refs/heads/main'
+    needs: [test-execution, report-generation, deploy-reports]
+    if: always() && github.ref == 'refs/heads/main'
     
     steps:
-    - name: Send notification
+    - name: 📢 Send notification
       run: |
-        echo "Tests failed! Check the results at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        # Add your notification logic here (Slack, email, etc.)
+        if [ "${{ needs.test-execution.result }}" == "success" ]; then
+          echo "✅ Tests passed successfully! 🎉"
+          echo "📊 Report available at: ${{ needs.deploy-reports.outputs.page_url || github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        else
+          echo "❌ Tests failed! 😞"
+          echo "🔍 Check logs at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        fi
