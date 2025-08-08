@@ -229,7 +229,7 @@ jobs:
           name: screenshots
           path: screenshots/
           retention-days: ${{ env.RETENTION_DAYS_SCREENSHOTS }}
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
       - name: 📁 Upload test results
         if: always()
@@ -270,12 +270,13 @@ jobs:
           name: test-results
           path: test-artifacts/
 
-      - name: ⬇️ Download screenshots
+      - name: ⬇️ Download screenshots (optional)
         uses: actions/download-artifact@v4
         with:
           name: screenshots
           path: screenshots/
         continue-on-error: true
+        # Note: This will show an error if no screenshots exist (no failed tests), but continues processing
 
       - name: 📊 Generate comprehensive reports
         run: |
