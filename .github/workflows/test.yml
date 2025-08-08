@@ -47,6 +47,9 @@ jobs:
       with:
         chrome-version: stable
     
+    - name: Create screenshots directory
+      run: mkdir -p screenshots
+    
     - name: Run E2E tests
       env:
         HEADLESS: true
@@ -93,14 +96,21 @@ jobs:
         path: allure-report/
         retention-days: 30
     
-    - name: Publish test results
+    - name: Publish test summary
       if: always()
-      uses: dorny/test-reporter@v1
-      with:
-        name: Test Results
-        path: 'reports/json/*.json'
-        reporter: cucumber-json
-        fail-on-error: false
+      run: |
+        echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ -f "allure-results/allure-report.json" ]; then
+          echo "✅ Allure report generated successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Allure report generation may have issues" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📁 **Artifacts Available:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Test Results (allure-results/)" >> $GITHUB_STEP_SUMMARY
+        echo "- HTML Report (allure-report/)" >> $GITHUB_STEP_SUMMARY
+        echo "- Screenshots (if any failures)" >> $GITHUB_STEP_SUMMARY
 
   deploy-report:
     needs: test
