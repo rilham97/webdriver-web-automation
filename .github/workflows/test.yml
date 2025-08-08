@@ -12,9 +12,9 @@ on:
       test_suite:
         description: 'Test suite to run'
         required: true
-        default: 'smoke'
+        default: 'login'
         type: choice
-        options: [smoke, pre-login, login, post-login, all]
+        options: [login, smoke, pre-login, post-login, all]
       debug_mode:
         description: 'Enable debug mode for troubleshooting'
         required: false
@@ -63,7 +63,7 @@ jobs:
     env:
       CI: true
       HEADLESS: true
-      TEST_SUITE: ${{ github.event.inputs.test_suite || 'all' }}
+      TEST_SUITE: ${{ github.event.inputs.test_suite || 'login' }}
       DEBUG_MODE: ${{ github.event.inputs.debug_mode == 'true' }}
       TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
       TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
@@ -140,6 +140,10 @@ jobs:
           
           # Determine test command based on suite
           case "${{ env.TEST_SUITE }}" in
+            login)
+              echo "🚀 Running login tests (fast feedback)..."
+              TEST_COMMAND="npm run test:login"
+              ;;
             smoke)
               echo "🚀 Running all test cases (smoke suite)..."
               TEST_COMMAND="npm test"
@@ -147,10 +151,6 @@ jobs:
             pre-login)
               echo "🚀 Running pre-login tests..."
               TEST_COMMAND="npm run test:pre-login"
-              ;;
-            login)
-              echo "🚀 Running login tests..."
-              TEST_COMMAND="npm run test:login"
               ;;
             post-login)
               echo "🚀 Running post-login tests..."
@@ -291,7 +291,7 @@ jobs:
           CI.Provider=GitHub Actions
           Execution.Mode=Headless
           Node.Version=$(node -v)
-          Test.Suite=${{ github.event.inputs.test_suite || 'all' }}
+          Test.Suite=${{ github.event.inputs.test_suite || 'login' }}
           Base.URL=${{ secrets.BASE_URL || 'https://www.cyberrank.ai' }}
           Execution.Date=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           Repository=${{ github.repository }}
